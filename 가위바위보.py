@@ -1,7 +1,7 @@
 import streamlit as st
 import random
 
-st.title("✊ ✋ ✌ 가위바위보 게임 (입력식 + 등급 시스템)")
+st.title("✊ ✋ ✌ 가위바위보 게임 (입력식)")
 
 # 세션 상태 초기화
 if "score" not in st.session_state:
@@ -11,21 +11,6 @@ if "history" not in st.session_state:
 
 choices = ["가위", "바위", "보"]
 emojis = {"가위": "✌", "바위": "✊", "보": "✋"}
-
-# 등급 계산 함수
-def get_grade(score):
-    if score < 0:
-        return "🔻 루저"
-    elif score <= 10:
-        return "🥉 브론즈"
-    elif score <= 20:
-        return "🥈 실버"
-    elif score <= 30:
-        return "🥇 골드"
-    elif score <= 40:
-        return "💎 플래티넘"
-    else:
-        return "👑 다이아몬드"
 
 # 사용자 입력 받기
 user_input = st.text_input("가위, 바위, 보 중 하나를 입력하세요:")
@@ -38,7 +23,7 @@ if user_input:
     else:
         computer_choice = random.choice(choices)
 
-        st.markdown("### 🎮 결과")
+        st.markdown("### 결과")
         st.write(f"당신의 선택: {emojis[user_input]} {user_input}")
         st.write(f"컴퓨터의 선택: {emojis[computer_choice]} {computer_choice}")
 
@@ -64,8 +49,17 @@ if user_input:
             "결과": result
         })
 
-# 점수 및 등급 출력
-grade = get_grade(st.session_state.score)
-st.markdown(f"### 🧮 현재 점수: **{st.session_state.score}점**")
-st.markdown(f"### 🏆 현재 등급: **{gr**
+        st.markdown(f"### 🧮 현재 점수: **{st.session_state.score}점**")
+
+        # 결과 히스토리 출력
+        if st.session_state.history:
+            st.markdown("### 📝 게임 기록")
+            for i, h in enumerate(reversed(st.session_state.history[-5:]), 1):
+                st.write(f"{i}. 나: {h['나']} | 컴퓨터: {h['컴퓨터']} | 결과: {h['결과']}")
+
+# 전체 초기화
+if st.button("🧹 점수 및 기록 초기화"):
+    st.session_state.score = 0
+    st.session_state.history = []
+    st.experimental_rerun()
 
