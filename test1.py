@@ -12,8 +12,8 @@ AI = 2
 @st.cache_resource
 def load_images():
     board_img = Image.open("board.jpg")
-    black_stone = Image.open("black_stone.png").resize((40, 40))
-    white_stone = Image.open("white_stone.png").resize((40, 40))
+    black_stone = Image.open("black_stone.png").resize((30, 30))
+    white_stone = Image.open("white_stone.png").resize((30, 30))
     return board_img, black_stone, white_stone
 
 board_img, black_stone_img, white_stone_img = load_images()
@@ -34,7 +34,7 @@ def check_win(board, player):
                 return True
     return False
 
-# AI 룰 기반 수 선택
+# AI 수 선택
 def ai_move(board):
     def score_move(i, j, player):
         directions = [(1,0),(0,1),(1,1),(1,-1)]
@@ -77,31 +77,34 @@ def ai_move(board):
                 best_moves = [(i, j)]
             elif total_score == best_score:
                 best_moves.append((i, j))
+
     return random.choice(best_moves) if best_moves else None
 
-# 초기화
+# 세션 초기화
 if "board" not in st.session_state:
     st.session_state.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
     st.session_state.game_over = False
     st.session_state.message = ""
 
-st.title("🏯 진짜처럼 즐기는 오목: 나 vs AI")
-st.markdown("흑돌: **나(●)** &nbsp;&nbsp;&nbsp;&nbsp; 백돌: **AI(○)**")
+st.set_page_config(layout="wide")
+st.title("🎯 AI와 리얼 오목 대결")
+st.markdown("🧠 **당신은 흑돌 (●)** | **AI는 백돌 (○)**")
 
-# 바둑판 출력
-st.image(board_img, width=600)
-cell_size = 40
+# 바둑판 이미지 배경
+st.image(board_img, caption="바둑판", use_column_width=True)
 
+# 게임판 출력
 for i in range(BOARD_SIZE):
     cols = st.columns(BOARD_SIZE)
     for j in range(BOARD_SIZE):
         with cols[j]:
-            if st.session_state.board[i][j] == PLAYER:
+            cell = st.session_state.board[i][j]
+            if cell == PLAYER:
                 st.image(black_stone_img)
-            elif st.session_state.board[i][j] == AI:
+            elif cell == AI:
                 st.image(white_stone_img)
             else:
-                if st.button(" ", key=f"{i}-{j}", help="여기를 눌러서 돌 놓기"):
+                if st.button(" ", key=f"{i}-{j}"):
                     if not st.session_state.game_over:
                         st.session_state.board[i][j] = PLAYER
                         if check_win(st.session_state.board, PLAYER):
@@ -116,7 +119,7 @@ for i in range(BOARD_SIZE):
                                     st.session_state.message = "😢 패배! AI가 승리했습니다."
                                     st.session_state.game_over = True
 
-# 메시지 출력
+# 결과 메시지
 if st.session_state.message:
     st.subheader(st.session_state.message)
 
