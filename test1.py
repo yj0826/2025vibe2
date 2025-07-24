@@ -1,127 +1,96 @@
 import streamlit as st
 import numpy as np
 import random
+import time
 
-BOARD_SIZE = 15
-EMPTY = 0
-PLAYER = 1
-AI = 2
+# 게임 설정
+BOARD_SIZE = 9
+NUM_MINES = 10
+TIME_LIMIT = 20 * 60  # 20분 (초 단위)
 
-# 승리 조건 확인
-def check_win(board, player):
-    for i in range(BOARD_SIZE):
-        for j in range(BOARD_SIZE):
-            if board[i][j] != player:
+# 지뢰 보드 생성
+def create_board():
+    board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+    mines = random.sample(range(BOARD_SIZE * BOARD_SIZE), NUM_MINES)
+    for m in mines:
+        row, col = divmod(m, BOARD_SIZE)
+        board[row, col] = -1  # 지뢰는 -1
+    # 주변 지뢰 수 계산
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if board[row, col] == -1:
                 continue
-            # 가로, 세로, 대각선(↘), 대각선(↙)
-            if j <= BOARD_SIZE - 5 and all(board[i][j+k] == player for k in range(5)):
-                return True
-            if i <= BOARD_SIZE - 5 and all(board[i+k][j] == player for k in range(5)):
-                return True
-            if i <= BOARD_SIZE - 5 and j <= BOARD_SIZE - 5 and all(board[i+k][j+k] == player for k in range(5)):
-                return True
-            if i <= BOARD_SIZE - 5 and j >= 4 and all(board[i+k][j-k] == player for k in range(5)):
-                return True
-    return False
+            count = sum(
+                board[r, c] == -1
+                for r in range(max(0, row - 1), min(BOARD_SIZE, row + 2))
+                for c in range(max(0, col - 1), min(BOARD_SIZE, col + 2))
+            )
+            board[row, col] = count
+    return board
 
-# 향상된 AI 알고리즘 (룰 기반)
-def ai_move(board):
-    def score_move(i, j, player):
-        """주변 방향별로 5목 가능성 평가"""
-        directions = [(1,0),(0,1),(1,1),(1,-1)]
-        score = 0
-        for dx, dy in directions:
-            count = 1
-            for dir in [1, -1]:
-                x, y = i, j
-                while True:
-                    x += dx * dir
-                    y += dy * dir
-                    if 0 <= x < BOARD_SIZE and 0 <= y < BOARD_SIZE and board[x][y] == player:
-                        count += 1
-                    else:
-                        break
-            if count >= 5:
-                return 10000  # 승리
-            elif count == 4:
-                score += 1000
-            elif count == 3:
-                score += 100
-            elif count == 2:
-                score += 10
-        return score
-
-    best_score = -1
-    best_moves = []
-
-    for i in range(BOARD_SIZE):
-        for j in range(BOARD_SIZE):
-            if board[i][j] != EMPTY:
-                continue
-            # 즉시 승리 또는 차단
-            if score_move(i, j, AI) >= 10000:
-                return (i, j)
-            if score_move(i, j, PLAYER) >= 10000:
-                return (i, j)
-            # 점수 계산
-            total_score = score_move(i, j, AI) + score_move(i, j, PLAYER) * 0.8
-            if total_score > best_score:
-                best_score = total_score
-                best_moves = [(i, j)]
-            elif total_score == best_score:
-                best_moves.append((i, j))
-
-    return random.choice(best_moves) if best_moves else None
-
-# 돌 모양 이모지
-def stone_symbol(value):
-    if value == PLAYER:
-        return "●"
-    elif value == AI:
-        return "○"
-    else:
-        return "➖"
-
-# 초기 상태 설정
+# 초기화
 if "board" not in st.session_state:
-    st.session_state.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+    st.session_state.board = create_board()
+    st.session_state.revealed = np.full((BOARD_SIZE, BOARD_SIZE), False)
     st.session_state.game_over = False
-    st.session_state.message = ""
+    st.session_state.start_time = time.time()
+    st.session_state.flagged = np.full((BOARD_SIZE, BOARD_SIZE), False)
+    st.session_state.win = False
 
-# 앱 제목
-st.title("🕹️ 오목 대결: 나 vs AI")
-st.markdown("👉 당신은 **흑돌(●)** 입니다. AI는 **백돌(○)** 입니다.")
+# 타이머
+elapsed = time.time() - st.session_state.start_time
+remaining = TIME_LIMIT - int(elapsed)
 
-# 게임판 출력
-for i in range(BOARD_SIZE):
+st.title("🧨 지뢰찾기")
+st.write(f"⏱️ 남은 시간: {remaining//60}분 {remaining%60}초")
+
+if remaining <= 0:
+    st.session_state.game_over = True
+    st.warning("⏰ 시간이 초과되었습니다! 게임 오버.")
+
+def reveal_cell(row, col):
+    if st.session_state.revealed[row, col] or st.session_state.flagged[row, col]:
+        return
+    st.session_state.revealed[row, col] = True
+    if st.session_state.board[row, col] == -1:
+        st.session_state.game_over = True
+    elif st.session_state.board[row, col] == 0:
+        # 재귀적으로 주변 셀 열기
+        for r in range(max(0, row - 1), min(BOARD_SIZE, row + 2)):
+            for c in range(max(0, col - 1), min(BOARD_SIZE, col + 2)):
+                if not st.session_state.revealed[r, c]:
+                    reveal_cell(r, c)
+
+# 보드 표시
+for row in range(BOARD_SIZE):
     cols = st.columns(BOARD_SIZE)
-    for j in range(BOARD_SIZE):
-        with cols[j]:
-            btn = stone_symbol(st.session_state.board[i][j])
-            if st.button(btn, key=f"{i}-{j}"):
-                if st.session_state.board[i][j] == EMPTY and not st.session_state.game_over:
-                    # 사용자 수
-                    st.session_state.board[i][j] = PLAYER
-                    if check_win(st.session_state.board, PLAYER):
-                        st.session_state.message = "🎉 승리! 당신이 이겼습니다!"
-                        st.session_state.game_over = True
-                    else:
-                        # AI 수
-                        move = ai_move(st.session_state.board)
-                        if move:
-                            ai_i, ai_j = move
-                            st.session_state.board[ai_i][ai_j] = AI
-                            if check_win(st.session_state.board, AI):
-                                st.session_state.message = "😢 패배! AI가 승리했습니다."
-                                st.session_state.game_over = True
+    for col in range(BOARD_SIZE):
+        cell_label = " "
+        if st.session_state.revealed[row, col]:
+            val = st.session_state.board[row, col]
+            cell_label = "💣" if val == -1 else (str(val) if val > 0 else "")
+            cols[col].markdown(f"**{cell_label}**")
+        elif st.session_state.flagged[row, col]:
+            if cols[col].button("🚩", key=f"flag_{row}_{col}"):
+                st.session_state.flagged[row, col] = False
+        else:
+            if cols[col].button("⬜", key=f"cell_{row}_{col}"):
+                reveal_cell(row, col)
 
-# 메시지 출력
-if st.session_state.message:
-    st.subheader(st.session_state.message)
+# 승리 조건 체크
+if not st.session_state.game_over:
+    unrevealed = np.sum(~st.session_state.revealed)
+    if unrevealed == NUM_MINES:
+        st.session_state.win = True
+        st.session_state.game_over = True
 
-# 다시 시작 버튼
-if st.button("🔁 다시 시작"):
-    st.session_state.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-    st.session_state.game_over = False
-    st.session_state.message = ""
-
+# 결과 표시
+if st.session_state.game_over:
+    if st.session_state.win:
+        st.success("🎉 승리! 모든 지뢰를 피해냈어요!")
+    else:
+        st.error("💥 지뢰를 밟았어요! 게임 오버입니다.")
+    if st.button("🔄 다시 시작하기"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.experimental_rerun()
