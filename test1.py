@@ -125,5 +125,3 @@ if st.button("🔁 다시 시작"):
     st.session_state.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
     st.session_state.game_over = False
     st.session_state.message = ""
-
-
